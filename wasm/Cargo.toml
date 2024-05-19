@@ -1,0 +1,30 @@
+[package]
+name = "wasm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Window and WGPU Dependencies
+winit = { version = "0.30", features = ["rwh_05"] }
+env_logger = "0.10"
+log = "0.4"
+wgpu = { version = "0.20", features = ["webgl"]}
+
+# WebAssemby Dependencies
+console_error_panic_hook = "0.1.6"
+console_log = "1.0"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.30"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Window",
+    "Element",
+]}
+game-loop = { version = "*", features = ["winit"] } 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[build]
+target = "wasm32-unknown-unknown"
