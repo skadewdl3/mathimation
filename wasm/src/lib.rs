@@ -1,13 +1,12 @@
+use std::cell::RefCell;
+use std::sync::Arc;
 use wasm_bindgen::prelude::*;
-use winit::application::ApplicationHandler;
-use winit::dpi::{LogicalSize, PhysicalSize};
-use winit::window::WindowId;
+use winit::dpi::PhysicalSize;
 use winit::{
     event::WindowEvent,
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
-use std::sync::Arc;
 
 struct State<'a> {
     surface: wgpu::Surface<'a>,
@@ -17,9 +16,13 @@ struct State<'a> {
     size: PhysicalSize<u32>,
 }
 
-struct Application<'a> {
+struct Application {
     window: Arc<Window>,
-    state: State<'a>,
+    state: State<'static>,
+}
+
+thread_local! {
+pub static APP: RefCell<Option<Application>> = RefCell::new(None);
 }
 
 impl<'a> State<'a> {
@@ -97,24 +100,8 @@ extern "C" {
     fn log(s: &str);
 }
 
-impl<'a> ApplicationHandler for Application<'a> {
-    fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
-
-    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        match event {
-            WindowEvent::CloseRequested => {
-                todo!()
-            }
-            WindowEvent::RedrawRequested => {
-                todo!()
-            }
-            _ => (),
-        }
-    }
-}
-
-impl<'a> Application<'a> {
-    pub async fn new(window: Arc<Window>, size: PhysicalSize<u32>) -> Application<'a> {
+impl Application {
+    pub async fn new(window: Arc<Window>, size: PhysicalSize<u32>) -> Application {
         let state = State::new(window.clone(), size).await;
         Self { window, state }
     }
@@ -162,7 +149,7 @@ impl<'a> Application<'a> {
         output.present();
     }
 
-    pub fn window(&'a self) -> &Window {
+    pub fn window(&self) -> &Window {
         &self.window
     }
 
@@ -172,6 +159,10 @@ impl<'a> Application<'a> {
     pub fn input(&self, event: &WindowEvent) {
         todo!()
     }
+}
+
+fn temp(app: Application) {
+    // store the app inside the thread local APP
 }
 
 #[wasm_bindgen]
@@ -189,7 +180,7 @@ pub async fn run() {
         .create_window(Window::default_attributes())
         .unwrap();
 
-        let window = Arc::new(window);
+    let window = Arc::new(window);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -208,16 +199,16 @@ pub async fn run() {
             .expect("Couldn't append canvas to document body.");
     }
 
-
     let app = Application::new(window.clone(), PhysicalSize::new(800, 400)).await;
-    let _ = game_loop::game_loop(
-        event_loop,
-        window,
-        app,
-        60,
-        0.1,
-        |app| app.game.update(),
-        |app| app.game.render(),
-        |_app, _event| {},
-    );
+    
+    APP.with(|a| {
+        *a.borrow_mut() = Some(app);
+    });
+
+    APP.with(|a| {
+        let app = a.borrow();
+        let x = app.as_ref().unwrap();
+    
+        game_loop::game_loop(event_loop, window, x, 60, 0.1, |a| a.game.update(), |a| a.game.render(), |a, event|{})
+    });
 }
