@@ -7,6 +7,7 @@ use winit::{
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     window::Window,
 };
+use std::sync::Arc;
 
 struct State<'a> {
     surface: wgpu::Surface<'a>,
@@ -17,12 +18,12 @@ struct State<'a> {
 }
 
 struct Application<'a> {
-    window: &'a Window,
+    window: Arc<Window>,
     state: State<'a>,
 }
 
 impl<'a> State<'a> {
-    pub async fn new(window: &'a Window, size: PhysicalSize<u32>) -> State<'a> {
+    pub async fn new(window: Arc<Window>, size: PhysicalSize<u32>) -> State<'a> {
         // Create a new instance and adapter
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::GL,
@@ -99,50 +100,13 @@ extern "C" {
 impl<'a> ApplicationHandler for Application<'a> {
     fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
-                println!("The close button was pressed; stopping");
-                event_loop.exit();
+                todo!()
             }
             WindowEvent::RedrawRequested => {
-                self.update();
-                let state = &self.state;
-                let output = state.surface.get_current_texture().unwrap();
-                let view = output
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
-                let mut encoder =
-                    state
-                        .device
-                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                            label: Some("Render Encoder"),
-                        });
-
-                {
-                    let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("Render Pass"),
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &view,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color {
-                                    r: 0.1,
-                                    g: 0.2,
-                                    b: 0.3,
-                                    a: 1.0,
-                                }),
-                                store: wgpu::StoreOp::Store,
-                            },
-                        })],
-                        depth_stencil_attachment: None,
-                        occlusion_query_set: None,
-                        timestamp_writes: None,
-                    });
-                }
-
-                state.queue.submit(std::iter::once(encoder.finish()));
-                output.present();
+                todo!()
             }
             _ => (),
         }
@@ -150,10 +114,54 @@ impl<'a> ApplicationHandler for Application<'a> {
 }
 
 impl<'a> Application<'a> {
-    pub async fn new(window: &'a Window, size: PhysicalSize<u32>) -> Application<'a> {
-        let state = State::new(window, size).await;
+    pub async fn new(window: Arc<Window>, size: PhysicalSize<u32>) -> Application<'a> {
+        let state = State::new(window.clone(), size).await;
         Self { window, state }
     }
+
+    pub fn update(&self) {
+        let _state = &self.state;
+        log("updating");
+    }
+
+    pub fn render(&self) {
+        let state = &self.state;
+        let output = state.surface.get_current_texture().unwrap();
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = state
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
+        {
+            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+        }
+
+        state.queue.submit(std::iter::once(encoder.finish()));
+        output.present();
+    }
+
     pub fn window(&'a self) -> &Window {
         &self.window
     }
@@ -163,9 +171,6 @@ impl<'a> Application<'a> {
     }
     pub fn input(&self, event: &WindowEvent) {
         todo!()
-    }
-    pub fn update(&mut self) {
-        log("updtaing");
     }
 }
 
@@ -178,10 +183,13 @@ pub async fn run() {
     let event_loop = EventLoop::new().unwrap();
 
     event_loop.set_control_flow(ControlFlow::Poll);
+
     // it's deprecated, but I couldn't find another way
     let window = event_loop
         .create_window(Window::default_attributes())
         .unwrap();
+
+        let window = Arc::new(window);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -200,6 +208,16 @@ pub async fn run() {
             .expect("Couldn't append canvas to document body.");
     }
 
-    let mut app = Application::new(&window, PhysicalSize::new(800, 400)).await;
-    let _ = event_loop.run_app(&mut app);
+
+    let app = Application::new(window.clone(), PhysicalSize::new(800, 400)).await;
+    let _ = game_loop::game_loop(
+        event_loop,
+        window,
+        app,
+        60,
+        0.1,
+        |app| app.game.update(),
+        |app| app.game.render(),
+        |_app, _event| {},
+    );
 }

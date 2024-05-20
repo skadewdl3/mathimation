@@ -5,25 +5,11 @@ onMounted(() => {
   init.run();
 });
 
-const stop = ref(false);
-const loop = () => {
-  console.log("this ran")
-  if (!stop.value) requestAnimationFrame(loop);
-};
-
-const run = () => {
-  stop.value = false;
-  requestAnimationFrame(loop);
-};
-
-const pause = () => {
-  stop.value = true;
-};
 </script>
 
 <template>
-  <button @click="run">Run</button>
-  <button @click="pause">Stop</button>
+  <button @click="">Run</button>
+  <button @click="">Stop</button>
   <div id="wasm-example"></div>
 </template>
 
