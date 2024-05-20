@@ -2,14 +2,14 @@
 const init = await import("../wasm/pkg/wasm.js");
 
 onMounted(() => {
-  init.run();
+  init.init();
 });
 
 </script>
 
 <template>
-  <button @click="">Run</button>
-  <button @click="">Stop</button>
+  <button @click="init.run">Run</button>
+  <button @click="init.pause">Stop</button>
   <div id="wasm-example"></div>
 </template>
 

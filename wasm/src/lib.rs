@@ -19,6 +19,8 @@ struct State<'a> {
 struct Application {
     window: Arc<Window>,
     state: State<'static>,
+    // Does not actually pause the event loop. Just says whether update function will run or not.
+    paused: bool,
 }
 
 thread_local! {
@@ -103,7 +105,14 @@ extern "C" {
 impl Application {
     pub async fn new(window: Arc<Window>, size: PhysicalSize<u32>) -> Application {
         let state = State::new(window.clone(), size).await;
-        Self { window, state }
+        Self {
+            window,
+            state,
+            paused: true,
+        }
+    }
+    pub fn set_paused (&mut self, paused: bool) {
+        self.paused = paused;
     }
 
     pub fn update(&self) {
@@ -161,13 +170,8 @@ impl Application {
     }
 }
 
-fn temp(app: Application) {
-    // store the app inside the thread local APP
-}
-
 #[wasm_bindgen]
-pub async fn run() {
-    // same as above for now...
+pub async fn init() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
 
@@ -200,15 +204,44 @@ pub async fn run() {
     }
 
     let app = Application::new(window.clone(), PhysicalSize::new(800, 400)).await;
-    
+
     APP.with(|a| {
         *a.borrow_mut() = Some(app);
     });
 
-    APP.with(|a| {
-        let app = a.borrow();
-        let x = app.as_ref().unwrap();
-    
-        game_loop::game_loop(event_loop, window, x, 60, 0.1, |a| a.game.update(), |a| a.game.render(), |a, event|{})
-    });
+    let _ = game_loop::game_loop(
+        event_loop,
+        window,
+        -1,
+        60,
+        0.1,
+        |_| {
+            APP.with(|app| {
+                if app.borrow().as_ref().unwrap().paused { return }
+                app.borrow().as_ref().unwrap().update();
+            })
+        }, // update
+        |_| {
+            APP.with(|app| {
+                if app.borrow().as_ref().unwrap().paused { return }
+                app.borrow().as_ref().unwrap().render();
+            })
+        }, // render
+        |_, _| {}, // events
+    );
 }
+
+#[wasm_bindgen]
+pub fn run() {
+    APP.with(|a| {
+        a.borrow_mut().as_mut().unwrap().set_paused(false);
+    })
+}
+
+#[wasm_bindgen]
+pub fn pause(){
+    APP.with(|a| {
+        a.borrow_mut().as_mut().unwrap().set_paused(true);
+    })
+}
+
